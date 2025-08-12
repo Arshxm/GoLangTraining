@@ -7,143 +7,124 @@ import (
 	"strings"
 )
 
+// creating a new scanner class
+var scanner = bufio.NewScanner(os.Stdin)
+
 func main() {
-	var season string
-	coats := make([]string, 0)
-	shirts := make([]string, 0)
-	pants := make([]string, 0)
-	caps := make([]string, 0)
-	jackets := make([]string, 0)
+	// reading a line with multiple values and adding them to a list, then printing it
+	scanner.Scan()
+	coatInput := scanner.Text()
+	coatList := strings.Fields(coatInput)[1:]
 
-	scanner := bufio.NewScanner(os.Stdin)
-	linesRead := 0
+	scanner.Scan()
+	shirtInput := scanner.Text()
+	shirtList := strings.Fields(shirtInput)[1:]
 
-	for scanner.Scan() && linesRead < 6 {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" {
-			break
-		}
-		linesRead++
+	scanner.Scan()
+	pantsInput := scanner.Text()
+	pantsList := strings.Fields(pantsInput)[1:]
 
-		if strings.Contains(line, ":") {
-			parts := strings.SplitN(line, ":", 2)
-			category := strings.TrimSpace(parts[0])
-			colors := strings.Fields(parts[1])
-			switch category {
-			case "COAT":
-				coats = append(coats, colors...)
-			case "SHIRT":
-				shirts = append(shirts, colors...)
-			case "PANTS":
-				pants = append(pants, colors...)
-			case "CAP":
-				caps = append(caps, colors...)
-			case "JACKET":
-				jackets = append(jackets, colors...)
-			}
-		} else {
-			season = strings.ToUpper(line)
-		}
-	}
+	scanner.Scan()
+	capInput := scanner.Text()
+	capsList := strings.Fields(capInput)[1:]
 
-	if err := scanner.Err(); err != nil {
-		fmt.Fprintln(os.Stderr, "error reading input:", err)
-		return
-	}
-	generateCombinations(season, coats, shirts, pants, caps, jackets)
-}
+	scanner.Scan()
+	jacketInput := scanner.Text()
+	jacketList := strings.Fields(jacketInput)[1:]
 
-func generateCombinations(season string, coats, shirts, pants, caps, jackets []string) {
-	for _, shirt := range shirts {
-		for _, pant := range pants {
-			combination := map[string]string{
-				"SHIRT": shirt,
-				"PANTS": pant,
-			}
+	scanner.Scan()
+	season := scanner.Text()
+	// converting string to int (can also use .Itoa() for int to string)
 
-			switch season {
-			case "SUMMER":
-				for _, cap := range caps {
-					finalCombination := copyMap(combination)
-					finalCombination["CAP"] = cap
-					printCombination(finalCombination)
+	if season == "SPRING" {
+		for _, coat := range coatList {
+			for _, shirt := range shirtList {
+				for _, pants := range pantsList {
+					fmt.Printf("COAT: %s SHIRT: %s PANTS: %s\n", coat, shirt, pants)
 				}
-
-			case "SPRING", "FALL":
-				capOptions := append([]string{""}, caps...)
-				coatOptions := append([]string{""}, getValidCoats(coats, season)...)
-
-				for _, cap := range capOptions {
-					for _, coat := range coatOptions {
-						finalCombination := copyMap(combination)
-						if cap != "" {
-							finalCombination["CAP"] = cap
-						}
-						if coat != "" {
-							finalCombination["COAT"] = coat
-						}
-						printCombination(finalCombination)
+			}
+		}
+		for _, shirt := range shirtList {
+			for _, pants := range pantsList {
+				for _, caps := range capsList {
+					fmt.Printf("SHIRT: %s PANTS: %s CAP: %s\n", shirt, pants, caps)
+				}
+			}
+		}
+		for _, coat := range coatList {
+			for _, shirt := range shirtList {
+				for _, pants := range pantsList {
+					for _, caps := range capsList {
+						fmt.Printf("COAT: %s SHIRT: %s PANTS: %s CAP: %s\n", coat, shirt, pants, caps)
 					}
 				}
-
-			case "WINTER":
-				validCoats := getValidCoats(coats, season)
-
-				for _, coat := range validCoats {
-					finalCombination := copyMap(combination)
-					finalCombination["COAT"] = coat
-					printCombination(finalCombination)
-				}
-
-				for _, jacket := range jackets {
-					finalCombination := copyMap(combination)
-					finalCombination["JACKET"] = jacket
-					printCombination(finalCombination)
+			}
+		}
+		for _, shirt := range shirtList {
+			for _, pants := range pantsList {
+				fmt.Printf("SHIRT: %s PANTS: %s\n", shirt, pants)
+			}
+		}
+	}
+	if season == "SUMMER" {
+		for _, shirt := range shirtList {
+			for _, pants := range pantsList {
+				for _, caps := range capsList {
+					fmt.Printf("SHIRT: %s PANTS: %s CAP: %s\n", shirt, pants, caps)
 				}
 			}
 		}
 	}
-}
 
-func getValidCoats(coats []string, season string) []string {
 	if season == "FALL" {
-		validCoats := make([]string, 0)
-		for _, coat := range coats {
-			if coat != "yellow" && coat != "orange" {
-				validCoats = append(validCoats, coat)
+		for _, coat := range coatList {
+			if coat != "orange" && coat != "yellow" {
+				for _, shirt := range shirtList {
+					for _, pants := range pantsList {
+						fmt.Printf("COAT: %s SHIRT: %s PANTS: %s\n", coat, shirt, pants)
+					}
+				}
 			}
 		}
-		return validCoats
-	}
-	return coats
-}
-
-func copyMap(original map[string]string) map[string]string {
-	copy := make(map[string]string)
-	for k, v := range original {
-		copy[k] = v
-	}
-	return copy
-}
-
-func printCombination(combination map[string]string) {
-	output := []string{}
-
-	if coat, exists := combination["COAT"]; exists {
-		output = append(output, "COAT: "+coat)
-	}
-	if shirt, exists := combination["SHIRT"]; exists {
-		output = append(output, "SHIRT: "+shirt)
-	}
-	if pant, exists := combination["PANTS"]; exists {
-		output = append(output, "PANTS: "+pant)
-	}
-	if cap, exists := combination["CAP"]; exists {
-		output = append(output, "CAP: "+cap)
-	}
-	if jacket, exists := combination["JACKET"]; exists {
-		output = append(output, "JACKET: "+jacket)
+		for _, shirt := range shirtList {
+			for _, pants := range pantsList {
+				for _, caps := range capsList {
+					fmt.Printf("SHIRT: %s PANTS: %s CAP: %s\n", shirt, pants, caps)
+				}
+			}
+		}
+		for _, coat := range coatList {
+			if coat != "orange" && coat != "yellow" {
+				for _, shirt := range shirtList {
+					for _, pants := range pantsList {
+						for _, caps := range capsList {
+							fmt.Printf("COAT: %s SHIRT: %s PANTS: %s CAP: %s\n", coat, shirt, pants, caps)
+						}
+					}
+				}
+			}
+		}
+		for _, shirt := range shirtList {
+			for _, pants := range pantsList {
+				fmt.Printf("SHIRT: %s PANTS: %s\n", shirt, pants)
+			}
+		}
 	}
 
-	fmt.Println(strings.Join(output, " "))
+	if season == "WINTER" {
+		for _, shirt := range shirtList {
+			for _, pants := range pantsList {
+				for _, jacket := range jacketList {
+					fmt.Printf("SHIRT: %s PANTS: %s JACKET: %s\n", shirt, pants, jacket)
+				}
+			}
+		}
+		for _, coat := range coatList {
+			for _, shirt := range shirtList {
+				for _, pants := range pantsList {
+					fmt.Printf("COAT: %s SHIRT: %s PANTS: %s\n", coat, shirt, pants)
+				}
+			}
+		}
+	}
 }
