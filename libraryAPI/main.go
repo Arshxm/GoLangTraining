@@ -16,9 +16,17 @@ type Book struct {
 	IsBorrowed bool
 }
 
-type Response struct {
+type GetResponse struct {
 	Title  string `json:"title"`
 	Author string `json:"author"`
+}
+type BorrowResponse struct {
+	Result string `json:"result"`
+	Error  string `json:"error"`
+}
+type ResponseRes struct {
+	Result string `json:"result"`
+	Error  string `json:"error"`
 }
 
 type BorrowRequest struct {
@@ -35,6 +43,10 @@ func NewServer(port string) *Server {
 
 func (s *Server) Start() {
 	http.HandleFunc("/book", s.bookHandler)
+	// Initialize the books map if it's nil
+	if books == nil {
+		books = make(map[string]Book)
+	}
 	http.ListenAndServe(":"+s.port, nil)
 }
 
@@ -56,15 +68,216 @@ func (s *Server) bookHandler(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) getBooks(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
-	title := strings.ToLower(query.Get("title"))
-	author := strings.ToLower(query.Get("author"))
+	title := strings.ToLower(strings.TrimSpace(query.Get("title")))
+	author := strings.ToLower(strings.TrimSpace(query.Get("author")))
+
+	if title == "" || author == "" {
+		resp := ResponseRes{
+			Result: "",
+			Error:  "title or author cannot be empty",
+		}
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(resp)
+		return
+	}
+
+	// Look for the specific book
+	found := false
+	for _, book := range books {
+		if strings.ToLower(book.Title) == title && strings.ToLower(book.Author) == author {
+			found = true
+			if book.IsBorrowed {
+				resp := ResponseRes{
+					Result: "",
+					Error:  "this book is borrowed",
+				}
+				w.WriteHeader(http.StatusBadRequest)
+				json.NewEncoder(w).Encode(resp)
+				return
+			}
+			resp := GetResponse{
+				Title:  book.Title,
+				Author: book.Author,
+			}
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(resp)
+			return
+		}
+	}
+
+	// Book not found
+	if !found {
+		resp := ResponseRes{
+			Result: "",
+			Error:  "this book does not exist",
+		}
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(resp)
+		return
+	}
+}
+
+func (s *Server) addBook(w http.ResponseWriter, r *http.Request) {
+	book := Book{}
+
+	// Check content type to handle both JSON and form data
+	contentType := r.Header.Get("Content-Type")
+
+	if strings.Contains(contentType, "application/json") {
+		// Handle JSON data
+		err := json.NewDecoder(r.Body).Decode(&book)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	} else {
+		// Handle form data
+		err := r.ParseForm()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		book.Title = r.FormValue("title")
+		book.Author = r.FormValue("author")
+	}
+
+	// Validate input before converting to lowercase
+	if strings.TrimSpace(book.Title) == "" || strings.TrimSpace(book.Author) == "" {
+		resp := ResponseRes{
+			Result: "",
+			Error:  "title or author cannot be empty",
+		}
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(resp)
+		return
+	}
+
+	book.Title = strings.ToLower(strings.TrimSpace(book.Title))
+	book.Author = strings.ToLower(strings.TrimSpace(book.Author))
+
+	// Check for duplicate books
+	for _, b := range books {
+		if strings.ToLower(b.Title) == book.Title && strings.ToLower(b.Author) == book.Author {
+			resp := ResponseRes{
+				Result: "this book is already in the library",
+				Error:  "",
+			}
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(resp)
+			return
+		}
+	}
+
+	resp := ResponseRes{
+		Result: "added book " + book.Title + " by " + book.Author,
+		Error:  "",
+	}
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(resp)
+	book.IsBorrowed = false
+	books[book.Title] = book
+	return
+}
+
+func (s *Server) deleteBook(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+	title := strings.ToLower(strings.TrimSpace(query.Get("title")))
+	author := strings.ToLower(strings.TrimSpace(query.Get("author")))
+
+	if title == "" || author == "" {
+		resp := ResponseRes{
+			Result: "",
+			Error:  "title or author cannot be empty",
+		}
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(resp)
+		return
+	}
 
 	for _, book := range books {
-		if title != "" && author != "" {
-			if strings.ToLower(book.Title) == title && strings.ToLower(book.Author) == author && !book.IsBorrowed {
-				resp := Response{
-					Title:  book.Title,
-					Author: book.Author,
+		if strings.ToLower(book.Title) == title && strings.ToLower(book.Author) == author {
+			delete(books, book.Title)
+			resp := ResponseRes{
+				Result: "successfully deleted",
+				Error:  "",
+			}
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(resp)
+			return
+		}
+	}
+	resp := ResponseRes{
+		Result: "",
+		Error:  "this book does not exist",
+	}
+	w.WriteHeader(http.StatusBadRequest)
+	json.NewEncoder(w).Encode(resp)
+}
+
+func (s *Server) borrowBook(w http.ResponseWriter, r *http.Request) {
+	var req BorrowRequest
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		resp := ResponseRes{
+			Result: "",
+			Error:  "borrow value cannot be empty",
+		}
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(resp)
+		return
+	}
+
+	query := r.URL.Query()
+	title := strings.ToLower(strings.TrimSpace(query.Get("title")))
+	author := strings.ToLower(strings.TrimSpace(query.Get("author")))
+
+	if title == "" || author == "" {
+		resp := ResponseRes{
+			Result: "",
+			Error:  "title or author cannot be empty",
+		}
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(resp)
+		return
+	}
+
+	for bookKey, book := range books {
+		if strings.ToLower(book.Title) == title && strings.ToLower(book.Author) == author {
+			if !book.IsBorrowed && req.Borrow {
+				book.IsBorrowed = true
+				books[bookKey] = book // Important: Update the book in the map
+				resp := BorrowResponse{
+					Result: "you have borrowed this book successfully",
+					Error:  "",
+				}
+				w.WriteHeader(http.StatusOK)
+				json.NewEncoder(w).Encode(resp)
+				return
+			}
+			if book.IsBorrowed && req.Borrow {
+				resp := ResponseRes{
+					Result: "",
+					Error:  "this book is already borrowed",
+				}
+				w.WriteHeader(http.StatusBadRequest)
+				json.NewEncoder(w).Encode(resp)
+				return
+			}
+			if !book.IsBorrowed && !req.Borrow {
+				resp := ResponseRes{
+					Result: "",
+					Error:  "this book is already in the library",
+				}
+				w.WriteHeader(http.StatusBadRequest)
+				json.NewEncoder(w).Encode(resp)
+				return
+			}
+			if book.IsBorrowed && !req.Borrow {
+				book.IsBorrowed = false
+				books[bookKey] = book // Important: Update the book in the map
+				resp := BorrowResponse{
+					Result: "thank you for returning this book",
+					Error:  "",
 				}
 				w.WriteHeader(http.StatusOK)
 				json.NewEncoder(w).Encode(resp)
@@ -72,67 +285,12 @@ func (s *Server) getBooks(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-}
 
-func (s *Server) addBook(w http.ResponseWriter, r *http.Request) {
-	book := Book{}
-	err := json.NewDecoder(r.Body).Decode(&book)
-	book.Title = strings.ToLower(book.Title)
-	book.Author = strings.ToLower(book.Author)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+	// Book not found
+	resp := ResponseRes{
+		Result: "",
+		Error:  "this book does not exist",
 	}
-	for _, b := range books {
-		if strings.ToLower(b.Title) == book.Title && strings.ToLower(b.Author) == book.Author {
-			http.Error(w, "Book already exists", http.StatusBadRequest)
-			return
-		}
-
-	}
-	book.IsBorrowed = false
-	books[book.Title] = book
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(book)
-}
-
-func (s *Server) deleteBook(w http.ResponseWriter, r *http.Request) {
-	query := r.URL.Query()
-	title := strings.ToLower(query.Get("title"))
-	author := strings.ToLower(query.Get("author"))
-	for _, book := range books {
-		if strings.ToLower(book.Title) == title && strings.ToLower(book.Author) == author {
-			delete(books, book.Title)
-			w.WriteHeader(http.StatusOK)
-			json.NewEncoder(w).Encode(book)
-			return
-		}
-	}
-}
-
-func (s *Server) borrowBook(w http.ResponseWriter, r *http.Request) {
-	var req BorrowRequest
-	err := json.NewDecoder(r.Body).Decode(&req)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	query := r.URL.Query()
-	title := strings.ToLower(query.Get("title"))
-	author := strings.ToLower(query.Get("author"))
-	for _, book := range books {
-		if strings.ToLower(book.Title) == title && strings.ToLower(book.Author) == author {
-			if !book.IsBorrowed && req.Borrow {
-				book.IsBorrowed = true
-				return
-			}
-			if book.IsBorrowed && !req.Borrow {
-				book.IsBorrowed = false
-			}
-			w.WriteHeader(http.StatusOK)
-			json.NewEncoder(w).Encode(book)
-			break
-		}
-	}
+	w.WriteHeader(http.StatusBadRequest)
+	json.NewEncoder(w).Encode(resp)
 }
