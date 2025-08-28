@@ -1,0 +1,1 @@
+SELECT * FROM students WHERE NOT EXISTS (SELECT 1 FROM student_courses WHERE course_id = 7 AND student_id = students.id)
