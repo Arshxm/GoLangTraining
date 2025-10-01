@@ -45,18 +45,17 @@ func TestEmptyData(t *testing.T) {
 	assert.Equal(t, h[0], "application/json; charset=utf-8")
 }
 
-
 func TestValidData(t *testing.T) {
 	now := time.Now()
 	birthDate := now.Add(-20 * 365 * 24 * time.Hour)
 	data := map[string]string{
-		"first_name": "ali",
-		"last_name": "alavi",
-		"username": "alialavi",
-		"email": "alavi@quera.org",
+		"first_name":   "ali",
+		"last_name":    "alavi",
+		"username":     "alialavi",
+		"email":        "alavi@quera.org",
 		"phone_number": "09123456789",
-		"birth_date": birthDate.Format("2006/01/02"),
-		"national_id": "7421368515",
+		"birth_date":   birthDate.Format("2006/01/02"),
+		"national_id":  "7421368515",
 	}
 	var body bytes.Buffer
 
@@ -77,7 +76,7 @@ func TestValidData(t *testing.T) {
 	req.Header.Set("Content-Type", binding.MIMEMultipartPOSTForm+"; boundary="+mw.Boundary())
 
 	w := httptest.NewRecorder()
-	
+
 	e.ServeHTTP(w, req)
 	assert.Equal(t, w.Code, http.StatusOK)
 	assert.Contains(t, w.Body.String(), `"message":"Data are valid"`)

@@ -7,18 +7,18 @@ import (
 )
 
 func validateUser(c *gin.Context) {
-	user := new (User)
+	user := new(User)
 	err := c.ShouldBind(&user)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"message": "Data are invalid",
-			"error": err.Error(),
+			"error":   err.Error(),
 		})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Data are valid",
-		"user": user,
+		"user":    user,
 	})
 }
 
